@@ -31,6 +31,10 @@ func NewServer(address string) *Server {
 	}
 }
 
+func (server *Server) NewEndpoint(name string, endpoint EndpointReceiver) {
+	server.endpoints[name] = endpoint
+}
+
 func (server *Server) a_Listen() error {
 	listener, err := net.Listen("tcp", server.address)
 	server.listener = listener
@@ -41,21 +45,25 @@ func (server *Server) a_Listen() error {
 }
 
 func (server *Server) Dial(address string, bytes []byte) ([]byte, error) {
-	conn, err := net.Dial("tcp", address) // "localhost:8080"
+	conn, err := net.Dial("tcp", address)
 
 	if err != nil {
-		return make([]byte, 0), err
+		return nil, err
+	}
+	defer conn.Close()
+
+	_, err = conn.Write(bytes)
+	if err != nil {
+		return nil, err
 	}
 
-	conn.Write(bytes)
-
 	response := make([]byte, 256)
+	n, err := conn.Read(response)
+	if err != nil {
+		return nil, err
+	}
 
-	conn.Read(response)
-
-	conn.Close()
-
-	return response, nil
+	return response[:n], nil
 }
 
 func (server *Server) Listen() error {
@@ -82,6 +90,7 @@ func (server *Server) Listen() error {
 			log.Println(err.Error())
 		}
 
+		conn.(*net.TCPConn).SetNoDelay(true)
 		endpoint, args := DigestRequest((conn))
 		variables := MapVariables(args)
 
@@ -89,6 +98,8 @@ func (server *Server) Listen() error {
 
 		server.endpoints[endpoint].Call(connect)
 		conn.Write(connect.GetWrite())
+
+		conn.Close()
 	}
 
 	return err

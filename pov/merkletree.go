@@ -1,4 +1,4 @@
-package validium
+package pov
 
 import (
 	"crypto/sha256"
